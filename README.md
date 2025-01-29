@@ -10,11 +10,7 @@ This is a Go program that recursively searches for a file in a given directory a
 - Gracefully stops when the file is found.
 
 ## Prerequisites
-- Go 1.18 or later
-- Install the required package:
-  ```sh
-  go get golang.design/x/clipboard
-  ```
+- Go 1.23.4 or later
 
 ## Installation
 1. Clone the repository:
