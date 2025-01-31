@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"golang.design/x/clipboard"
 	"os"
 	"os/exec"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -14,19 +14,16 @@ import (
 
 func main() {
 	ch := make(chan string, 5)
-	done := make(chan struct{}) // Channel to signal shutdown
+	done := make(chan struct{})
 	var wg sync.WaitGroup
 
 	var path = flag.String("path", ".", "path of ls command")
 	var search = flag.String("filename", "", "Finding filename path")
+	var ignores = flag.String("ignores", "node_modules, vendor", "Ignore paths")
 
 	flag.Parse()
 
-	err := clipboard.Init()
-
-	if err != nil {
-		panic(err)
-	}
+	var ignorePaths = strings.Split(*ignores, ", ")
 
 	var output1, _ = exec.Command(
 		"ls",
@@ -50,16 +47,28 @@ func main() {
 		*path,
 		ch,
 		&wg,
-		done, // Pass done channel to workers
+		done, // Pass done channel to workers,
+		ignorePaths,
 	)
+
+	//fmt.Printf("Command: %s\n", file)
+	osName := runtime.GOOS
+
+	switch osName {
+	case "darwin":
+		fmt.Printf("Command + ^C to stop searching.\n")
+		break
+	default:
+		fmt.Printf("Ctrl + ^C to stop searching.\n")
+		break
+	}
 
 	// Main loop for receiving files
 	for file := range ch {
 		if strings.Contains(file, *search) {
 			fmt.Printf("Filename found: %s\n", file)
-			clipboard.Write(clipboard.FmtText, []byte(file))
-			close(done)
-			break
+			// close(done)
+			// break
 		}
 	}
 
@@ -68,7 +77,7 @@ func main() {
 	fmt.Printf("time took is %.2f\n", endTime.Seconds())
 }
 
-func recursiveDir(files []string, path string, ch chan<- string, wg *sync.WaitGroup, done <-chan struct{}) {
+func recursiveDir(files []string, path string, ch chan<- string, wg *sync.WaitGroup, done <-chan struct{}, ignores []string) {
 	defer wg.Done()
 
 	for _, fileOrDir := range files {
@@ -78,8 +87,6 @@ func recursiveDir(files []string, path string, ch chan<- string, wg *sync.WaitGr
 			return
 		default:
 		}
-
-		ignores := []string{"node_modules", "vendor"}
 
 		if slices.Contains(ignores, fileOrDir) {
 			continue
@@ -107,11 +114,11 @@ func recursiveDir(files []string, path string, ch chan<- string, wg *sync.WaitGr
 				ch,
 				wg,
 				done,
+				ignores,
 			)
 		} else {
 			select {
 			case <-done:
-				fmt.Printf("Skip")
 				return
 			case ch <- fullPath:
 			}
